@@ -278,68 +278,382 @@ survey_data["Part2EndTime"] = pd.to_datetime(survey_data["Part2EndTime"],
 print(survey_data["Part2EndTime"].head())
 ```
 
-#
+# Connect a database
 
 ```
+# Import sqlalchemy's create_engine() function
+from sqlalchemy import create_engine
 
+# Create the database engine
+engine = create_engine("sqlite:///data.db")
+
+# View the tables in the database
+print(engine.table_names())
 ```
 
-#
+# Load entire tables
 
 ```
+# Load libraries
+import pandas as pd
+from sqlalchemy import create_engine
 
+# Create the database engine
+engine = create_engine('sqlite:///data.db')
+
+# Load hpd311calls without any SQL
+hpd_calls = pd.read_sql("hpd311calls", engine)
+
+# View the first few rows of data
+print(hpd_calls.head())
+
+# Create the database engine
+engine = create_engine("sqlite:///data.db")
+
+# Create a SQL query to load the entire weather table
+query = """
+SELECT * 
+  FROM weather;
+"""
+
+# Load weather with the SQL query
+weather = pd.read_sql(query, engine)
+
+# View the first few rows of data
+print(weather.head())
 ```
 
-#
+# Select column with SQL
 
 ```
+# Create database engine for data.db
+engine = create_engine("sqlite:///data.db")
 
+# Write query to get date, tmax, and tmin from weather
+query = """
+SELECT date, 
+       tmax, 
+       tmin
+  FROM weather;
+"""
+
+# Make a data frame by passing query and engine to read_sql()
+temperatures = pd.read_sql(query,engine)
+
+# View the resulting data frame
+print(temperatures)
 ```
 
-#
+# Selecting rows
 
 ```
+# Create query to get hpd311calls records about safety
+query = """
+SELECT *
+FROM hpd311calls
+WHERE complaint_type == 'SAFETY';
+"""
 
+# Query the database and assign result to safety_calls
+safety_calls = pd.read_sql(query, engine)
+
+# Graph the number of safety calls by borough
+call_counts = safety_calls.groupby('borough').unique_key.count()
+call_counts.plot.barh()
+plt.show()
 ```
 
-#
+# Filtering on multiple conditions
 
 ```
+# Create query for records with max temps <= 32 or snow >= 1
+query = """
+SELECT *
+  FROM weather
+  WHERE tmax <= 32
+  OR snow >= 1;
+"""
 
+# Query database and assign result to wintry_days
+wintry_days = pd.read_sql(query, engine)
+
+# View summary stats about the temperatures
+print(wintry_days.describe())
 ```
 
-#
+# Getting distinct values
 
 ```
+# Create query for unique combinations of borough and complaint_type
+query = """
+SELECT DISTINCT borough, 
+       complaint_type
+  FROM hpd311calls;
+"""
 
+# Load results of query to a data frame
+issues_and_boros = pd.read_sql(query, engine)
+
+# Check assumption about issues and boroughs
+print(issues_and_boros)
 ```
 
-#
+# Counting in groups
+ 
+```
+# Create query to get call counts by complaint_type
+query = """
+SELECT complaint_type, 
+     COUNT(*)
+  FROM hpd311calls
+  GROUP BY complaint_type;
+"""
 
+# Create data frame of call counts by issue
+calls_by_issue = pd.read_sql(query, engine)
+
+# Graph the number of calls for each housing issue
+calls_by_issue.plot.barh(x="complaint_type")
+plt.show()
 ```
 
-```
-
-#
+# Working with aggregate functions
 
 ```
+# Create query to get temperature and precipitation by month
+query = """
+SELECT month, 
+        MAX(tmax), 
+        MIN(tmin),
+        SUM(prcp)
+  FROM weather 
+ GROUP BY month;
+"""
 
+# Get data frame of monthly weather stats
+weather_by_month = pd.read_sql(query, engine)
+
+# View weather stats by month
+print(weather_by_month)
 ```
 
-#
+# Joining tables
 
 ```
+# Query to join weather to call records by date columns
+query = """
+SELECT * 
+  FROM hpd311calls
+  JOIN weather 
+  ON hpd311calls.created_date = weather.date;
+"""
 
+# Create data frame of joined tables
+calls_with_weather = pd.read_sql(query, engine)
+
+# View the data frame to make sure all columns were joined
+print(calls_with_weather.head())
 ```
 
-#
+# Joining, filtering
 
 ```
+# Query to get water leak calls and daily precipitation
+query = """
+SELECT hpd311calls.*, weather.prcp
+  FROM hpd311calls
+  JOIN weather
+    ON hpd311calls.created_date = weather.date
+  WHERE hpd311calls.complaint_type = 'WATER LEAK';"""
 
+# Load query results into the leak_calls data frame
+leak_calls = pd.read_sql(query, engine)
+
+# View the data frame
+print(leak_calls.head())
 ```
 
-#
+# Joining, filtering, and aggregating
 
 ```
+# Modify query to join tmax and tmin from weather by date
+query = """
+SELECT hpd311calls.created_date, 
+	   COUNT(*), 
+       weather.tmax,
+       weather.tmin
+  FROM hpd311calls 
+       JOIN weather
+       ON hpd311calls.created_date = weather.date
+ WHERE hpd311calls.complaint_type = 'HEAT/HOT WATER' 
+ GROUP BY hpd311calls.created_date;
+ """
 
+# Query database and save results as df
+df = pd.read_sql(query, engine)
+
+# View first 5 records
+print(df.head())
+```
+
+# LOAD JSON data
+
+```
+# Load pandas as pd
+import pandas as pd
+
+# Load the daily report to a data frame
+pop_in_shelters = pd.read_json("dhs_daily_report.json")
+
+# View summary stats about pop_in_shelters
+print(pop_in_shelters.describe())
+```
+
+# Work with JSON orientations
+
+```
+try:
+    # Load the JSON with orient specified
+    df = pd.read_json("dhs_report_reformatted.json",
+                      orient = "split")
+    
+    # Plot total population in shelters over time
+    df["date_of_census"] = pd.to_datetime(df["date_of_census"])
+    df.plot(x="date_of_census", 
+            y="total_individuals_in_shelter")
+    plt.show()
+    
+except ValueError:
+    print("pandas could not parse the JSON.")
+```
+
+# Get data from an API
+
+```
+api_url = "https://api.yelp.com/v3/businesses/search"
+
+# Get data about NYC cafes from the Yelp API
+response = requests.get(api_url, 
+                headers=headers, 
+                params=params)
+
+# Extract JSON data from the response
+data = response.json()
+
+# Load data to a data frame
+cafes = pd.DataFrame(data["businesses"])
+
+# View the data's dtypes
+print(cafes.dtypes)
+```
+
+# Set API parameters
+
+```
+# Create dictionary to query API for cafes in NYC
+parameters = {"term":"cafe",
+          	  "location":"NYC"}
+
+# Query the Yelp API with headers and params set
+response = requests.get(api_url,
+                params=parameters,
+                headers=headers)
+
+# Extract JSON data from response
+data = response.json()
+
+# Load "businesses" values to a data frame and print head
+cafes = pd.DataFrame(data["businesses"])
+print(cafes.head())
+```
+
+# Set request headers
+
+```
+# Create dictionary that passes Authorization and key string
+headers = {"Authorization": "Bearer {}".format(api_key)}
+
+# Query the Yelp API with headers and params set
+response = requests.get(api_url,
+                        params=params,
+                        headers=headers)
+
+# Extract JSON data from response
+data = response.json()
+
+# Load "businesses" values to a data frame and print names
+cafes = pd.DataFrame(data["businesses"])
+print(cafes.name)
+```
+
+# Flatten nested JSONs
+
+```
+# Load json_normalize()
+from pandas.io.json import json_normalize
+
+# Isolate the JSON data from the API response
+data = response.json()
+
+# Flatten business data into a data frame, replace separator
+cafes = json_normalize(data["businesses"],
+             sep="_")
+
+# View data
+print(cafes.head())
+```
+
+# Handle deeply nested data
+
+```
+# Load other business attributes and set meta prefix
+flat_cafes = json_normalize(data["businesses"],
+                            sep="_",
+                    		record_path="categories",
+                    		meta=["name",
+							"alias",
+							"rating",
+							["coordinates","latitude"],
+							["coordinates","longitude"]],
+                    		meta_prefix="biz_")
+
+# View the data
+print(flat_cafes.head())
+```
+
+# Append data frames
+
+```
+# Add an offset parameter to get cafes 51-100
+params = {"term": "cafe", 
+          "location": "NYC",
+          "sort_by": "rating", 
+          "limit": 50,
+          "offset": 50}
+
+result = requests.get(api_url, headers=headers, params=params)
+next_50_cafes = json_normalize(result.json()["businesses"])
+
+# Append the results, setting ignore_index to renumber rows
+cafes = top_50_cafes.append(next_50_cafes,ignore_index=True)
+
+# Print shape of cafes
+print(cafes.shape)
+```
+
+# Merge data frames
+
+```
+# Merge crosswalk into cafes on their zip code fields
+cafes_with_pumas = cafes.merge(crosswalk,
+                                left_on="location_zip_code",
+                                right_on="zipcode")
+
+# Merge pop_data into cafes_with_pumas on puma field
+cafes_with_pop = cafes_with_pumas.merge(pop_data,
+                                left_on="puma",
+                                right_on="puma")
+
+# View the data
+print(cafes_with_pop.head())
 ```
